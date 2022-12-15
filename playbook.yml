@@ -1,0 +1,24 @@
+---
+- hosts: graphite
+  become_user: root
+  vars:
+    user: root
+    graphite:
+      secret_key: 'ob3sow^ik#4q(k5*tgw&6j+osyr^@0jus$yd+-#^&^d#%yim1!'
+    carbon:
+      host: 0.0.0.0
+      ssl: no
+    db_graphite:
+      name: graphite
+      user: graphite
+      password: graphite
+
+  roles:
+    - common
+    - graphite
+    - statsd
+
+- hosts: grafana
+  become_user: root
+  roles:
+    - grafana

@@ -1,0 +1,84 @@
+---
+- name: install required packages for graphite debian/ubuntu
+  apt: pkg={{ item }} state=latest
+  with_items:
+    - graphite-web
+    - graphite-carbon
+    - postgresql
+    - libpq-dev
+    - python-psycopg2
+    - python-pip
+    - apache2
+    - nodejs-legacy
+    - git
+    - wget
+    - curl
+    - default-jdk
+    - build-essential
+    - devscripts
+    - debhelper
+    - npm
+    - libapache2-mod-wsgi
+    - python-passlib
+
+# Configure Whisper, Carbon and Graphite-Web
+- name: Configure Graphite
+  template: src=graphite-carbon.j2 dest=/etc/default/graphite-carbon mode=0644
+
+- name: Configure carbon cache
+  template: src=carbon.conf.j2 dest=/etc/carbon/carbon.conf mode=0644
+
+- name: Configure carbon storage schema
+  template: src=storage-schemas.conf.j2 dest=/etc/carbon/storage-schemas.conf mode=0644
+
+- name: Configure carbon storage aggregation
+  template: src=storage-aggregation.conf.j2 dest=/etc/carbon/storage-aggregation.conf mode=0644
+
+- name: graphite conf
+  template: src=local_settings.py.j2 dest=/etc/graphite/local_settings.py mode=0644
+
+- name: Start Postresql DB
+  service: name=postgresql state=restarted enabled=yes
+
+- name: Create the "{{ db_graphite.user }}" user
+  postgresql_user:
+    name: "{{ db_graphite.user }}"
+    password: "{{ db_graphite.password }}"
+  become_user: postgres
+
+- name: create the "{{ db_graphite.name }}" db
+  postgresql_db:
+    name: "{{ db_graphite.name }}"
+    owner: "{{ db_graphite.user }}"
+  become_user: postgres
+
+- name: migratedb for graphite
+  shell: graphite-manage migrate auth
+  #become_user: postgres
+
+- name: syncdb for graphite
+  shell: graphite-manage syncdb --noinput
+  #become_user: postgres
+
+#- name: Set file permissions
+#  command: /bin/chown -R www-data:www-data /opt/graphite
+
+#- name: Copy nginx configuration for graphite
+#  template: src=nginx-graphite.conf.j2 dest=/etc/nginx/nginx.conf owner=www-data group=www-data
+
+- name: Disable Default Site
+  command: a2dissite 000-default
+
+- name: Copy Graphite VirtualHost file for graphite
+  template: src=nginx-graphite.conf.j2 dest=/etc/apache2/sites-available/graphite.conf
+
+- name: Enable Graphite VirtualHost
+  command: a2ensite graphite
+  #file: src=/etc/nginx/sites-available/graphite.conf dest=/etc/nginx/sites-enabled/graphite.conf state=link
+
+- name: Start Carbon Service
+  service: name=carbon-cache state=restarted enabled=yes
+
+- name: Start apache2 Service
+  service: name=apache2 state=restarted enabled=yes
+
